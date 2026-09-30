@@ -1,6 +1,8 @@
 import { Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+
+types.setTypeParser(types.builtins.INT8, Number)
 
 export const PG_POOL = 'PG_POOL';
 
