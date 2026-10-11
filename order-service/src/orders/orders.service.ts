@@ -3,6 +3,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrdersRepository } from './orders.repository';
 import { Order } from './entities/order.entity';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 
 @Injectable()
 export class OrdersService {
@@ -16,8 +17,17 @@ export class OrdersService {
     return this.orderRepository.create({ ...createOrderDto, totalAmount });
   }
 
-  findAll() {
-    return `This action returns all orders`;
+  async findAll(query: ListOrdersQueryDto) {
+    const orders = await this.orderRepository.findMany({
+      ...query,
+      limit: query.limit + 1,
+    });
+    const hasMore = orders.length > query.limit;
+    const data = hasMore ? orders.slice(0, query.limit) : orders;
+    return {
+      data,
+      nextCursor: hasMore ? data.at(-1)?.id : null,
+    };
   }
 
   async findOne(id: string): Promise<Order> {

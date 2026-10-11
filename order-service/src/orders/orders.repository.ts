@@ -86,6 +86,52 @@ export class OrdersRepository {
     );
     return toOrder(orderRow, itemRows);
   }
+
+  async findMany(filter: {
+    customerId?: string;
+    status?: OrderStatus;
+    cursor?: string;
+    limit: number;
+  }): Promise<Order[]> {
+    const { rows: orderRows } = await this.pool.query<OrderRow>(
+      `SELECT * FROM orders
+       WHERE ($1::uuid IS NULL OR customer_id = $1)
+         AND ($2::text IS NULL OR status = $2)
+         AND ($3::uuid IS NULL OR id < $3)
+       ORDER BY id DESC
+       LIMIT $4`,
+      [
+        filter.customerId ?? null,
+        filter.status ?? null,
+        filter.cursor ?? null,
+        filter.limit,
+      ],
+    );
+    if (orderRows.length === 0) {
+      return [];
+    }
+
+    const { rows: itemRows } = await this.pool.query<
+      OrderItemRow & { order_id: string }
+    >(
+      `SELECT id, order_id, product_id, unit_price, quantity
+       FROM order_items
+       WHERE order_id = ANY($1::uuid[])
+       ORDER BY id`,
+      [orderRows.map((row) => row.id)],
+    );
+
+    const itemsByOrderId = new Map<string, OrderItemRow[]>();
+    for (const item of itemRows) {
+      const items = itemsByOrderId.get(item.order_id) ?? [];
+      items.push(item);
+      itemsByOrderId.set(item.order_id, items);
+    }
+
+    return orderRows.map((row) =>
+      toOrder(row, itemsByOrderId.get(row.id) ?? []),
+    );
+  }
 }
 
 function toOrder(row: OrderRow, itemRows: OrderItemRow[]): Order {

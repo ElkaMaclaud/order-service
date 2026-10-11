@@ -1,5 +1,3 @@
-export type OrderStatus = 'pending' | 'paid' | 'payment_failed' | 'cancelled';
-
 export interface OrderItem {
   id: string;
   productId: string;
@@ -17,3 +15,12 @@ export interface Order {
   updatedAt: Date;
   items: OrderItem[];
 }
+
+export const ORDER_STATUSES = [
+  'pending',
+  'paid',
+  'payment_failed',
+  'cancelled',
+] as const;
+
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
