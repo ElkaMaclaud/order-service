@@ -132,6 +132,16 @@ export class OrdersRepository {
       toOrder(row, itemsByOrderId.get(row.id) ?? []),
     );
   }
+
+  async cancelIfPending(id: string): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE orders
+      SET status = 'cancelled', updated_at=now()
+      WHERE id=$1 AND status='pending'`,
+      [id],
+    );
+    return rowCount === 1;
+  }
 }
 
 function toOrder(row: OrderRow, itemRows: OrderItemRow[]): Order {
