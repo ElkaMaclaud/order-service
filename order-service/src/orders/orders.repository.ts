@@ -66,6 +66,26 @@ export class OrdersRepository {
       client.release();
     }
   }
+
+  async findById(id: string): Promise<Order | null> {
+    const {
+      rows: [orderRow],
+    } = await this.pool.query<OrderRow>('SELECT * FROM orders WHERE id = $1', [
+      id,
+    ]);
+    if (!orderRow) {
+      return null;
+    }
+
+    const { rows: itemRows } = await this.pool.query<OrderItemRow>(
+      `SELECT id, product_id, unit_price, quantity
+       FROM order_items
+       WHERE order_id = $1
+       ORDER BY id`,
+      [id],
+    );
+    return toOrder(orderRow, itemRows);
+  }
 }
 
 function toOrder(row: OrderRow, itemRows: OrderItemRow[]): Order {

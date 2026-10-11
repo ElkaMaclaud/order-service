@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { OrdersRepository } from './orders.repository';
@@ -20,8 +20,12 @@ export class OrdersService {
     return `This action returns all orders`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
+  async findOne(id: string): Promise<Order> {
+    const order = await this.orderRepository.findById(id);
+    if (!order) {
+      throw new NotFoundException(`Order ${id} not found`);
+    }
+    return order;
   }
 
   update(id: number, updateOrderDto: UpdateOrderDto) {
