@@ -1,11 +1,11 @@
-export interface OrderItem {
+export class OrderItem {
   id: string;
   productId: string;
   unitPrice: number;
   quantity: number;
 }
 
-export interface Order {
+export class Order {
   id: string;
   customerId: string;
   status: OrderStatus;
