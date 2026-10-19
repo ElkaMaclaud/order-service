@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { Order, OrderItem, OrderStatus } from './entities/order.entity';
 
@@ -31,11 +31,38 @@ export interface NewOrder {
 export class OrdersRepository {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async create(data: NewOrder): Promise<Order> {
+  private async withTransaction<T>(
+    fn: (client: PoolClient) => Promise<T>,
+  ): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
+  private async insertOutboxEvent(
+    client: PoolClient,
+    aggregateId: string,
+    eventType: string,
+    payload: unknown,
+  ): Promise<void> {
+    await client.query(
+      `INSERT into outbox (aggregate_id, event_type, payload)
+      VALUES ($1, $2< $3)`,
+      [aggregateId, eventType, JSON.stringify(payload)],
+    );
+  }
+
+  async create(data: NewOrder): Promise<Order> {
+    return this.withTransaction(async (client) => {
       const {
         rows: [orderRow],
       } = await client.query<OrderRow>(
@@ -57,14 +84,10 @@ export class OrdersRepository {
         ],
       );
 
-      await client.query('COMMIT');
-      return toOrder(orderRow, itemRows);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+      const order = toOrder(orderRow, itemRows);
+      await this.insertOutboxEvent(client, order.id, 'order.created', order);
+      return order;
+    });
   }
 
   async findById(id: string): Promise<Order | null> {
@@ -134,13 +157,27 @@ export class OrdersRepository {
   }
 
   async cancelIfPending(id: string): Promise<boolean> {
-    const { rowCount } = await this.pool.query(
-      `UPDATE orders
-      SET status = 'cancelled', updated_at=now()
-      WHERE id=$1 AND status='pending'`,
-      [id],
-    );
-    return rowCount === 1;
+    return this.withTransaction(async (client) => {
+      const {
+        rows: [orderRow],
+      } = await client.query<OrderRow>(
+        `UPDATE orders
+         SET status = 'cancelled', updated_at = now()
+         WHERE id = $1 AND status = 'pending'
+         RETURNING *`,
+        [id],
+      );
+      if (!orderRow) {
+        return false;
+      }
+
+      await this.insertOutboxEvent(client, id, 'order.cancelled', {
+        orderId: orderRow.id,
+        customerId: orderRow.customer_id,
+        cancelledAt: orderRow.updated_at,
+      });
+      return true;
+    });
   }
 }
 
