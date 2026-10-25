@@ -56,7 +56,7 @@ export class OrdersRepository {
   ): Promise<void> {
     await client.query(
       `INSERT into outbox (aggregate_id, event_type, payload)
-      VALUES ($1, $2< $3)`,
+      VALUES ($1, $2, $3)`,
       [aggregateId, eventType, JSON.stringify(payload)],
     );
   }
