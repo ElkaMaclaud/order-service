@@ -1,12 +1,10 @@
 import { Inject, Module, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { DATABASE, PG_POOL } from './database.constants';
+import { ProcessedEventsRepository } from './processed-events.repository';
 import * as schema from './schema';
-
-export const PG_POOL = 'PG_POOL';
-export const DATABASE = 'DATABASE';
-export type Database = NodePgDatabase<typeof schema>;
 
 @Module({
   providers: [
@@ -23,8 +21,9 @@ export type Database = NodePgDatabase<typeof schema>;
       inject: [PG_POOL],
       useFactory: (pool: Pool) => drizzle(pool, { schema }),
     },
+    ProcessedEventsRepository,
   ],
-  exports: [DATABASE],
+  exports: [DATABASE, ProcessedEventsRepository],
 })
 export class DatabaseModule implements OnModuleDestroy {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
